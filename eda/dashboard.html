@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דשבורד ניתוח נתוני גנים</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f0f23;
+            --bg-card: #1a1a2e;
+            --bg-card-hover: #232342;
+            --accent-primary: #00d4aa;
+            --accent-secondary: #7b68ee;
+            --accent-warning: #ffa726;
+            --accent-danger: #ef5350;
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0b8;
+            --text-muted: #6a6a80;
+            --border-color: #2a2a45;
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #00d4aa 0%, #00a085 100%);
+            --gradient-3: linear-gradient(135deg, #ffa726 0%, #ff7043 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Heebo', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .bg-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(102, 126, 234, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 212, 170, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(123, 104, 238, 0.05) 0%, transparent 40%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem 0;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #00d4aa, #7b68ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-1);
+        }
+
+        .stat-card:nth-child(2)::before { background: var(--gradient-2); }
+        .stat-card:nth-child(3)::before { background: var(--gradient-3); }
+        .stat-card:nth-child(4)::before { background: linear-gradient(135deg, #ef5350, #e91e63); }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-primary);
+            box-shadow: 0 10px 40px rgba(0, 212, 170, 0.1);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-sub {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-top: 0.3rem;
+        }
+
+        /* Charts Section */
+        .charts-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--gradient-2);
+            border-radius: 2px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 600px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Data Tables */
+        .tables-section {
+            margin-bottom: 2rem;
+        }
+
+        .table-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: right;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .badge-primary { background: rgba(0, 212, 170, 0.2); color: var(--accent-primary); }
+        .badge-secondary { background: rgba(123, 104, 238, 0.2); color: var(--accent-secondary); }
+        .badge-warning { background: rgba(255, 167, 38, 0.2); color: var(--accent-warning); }
+
+        /* Insights Section */
+        .insights-section {
+            margin-bottom: 2rem;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .insight-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-right: 4px solid var(--accent-primary);
+        }
+
+        .insight-card.warning {
+            border-right-color: var(--accent-warning);
+        }
+
+        .insight-card.danger {
+            border-right-color: var(--accent-danger);
+        }
+
+        .insight-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .insight-text {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 0.6rem 1.2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+
+        .tab-btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            background: var(--accent-primary);
+            color: var(--bg-dark);
+            border-color: var(--accent-primary);
+            font-weight: 500;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Sequence Preview */
+        .seq-preview {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            white-space: nowrap;
+            direction: ltr;
+            text-align: left;
+        }
+
+        .base-A { color: #4CAF50; }
+        .base-T { color: #f44336; }
+        .base-G { color: #ff9800; }
+        .base-C { color: #2196F3; }
+
+        /* Progress bars for class balance */
+        .class-bar-container {
+            margin-bottom: 0.8rem;
+        }
+
+        .class-bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+        }
+
+        .class-bar {
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .class-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    <div class="container">
+        <header>
+            <h1>🧬 דשבורד ניתוח נתוני גנים</h1>
+            <p class="subtitle">ניתוח אקספלורטורי של מאגר הנתונים לסיווג סוגי גנים</p>
+        </header>
+
+        <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <p>טוען נתונים...</p>
+        </div>
+
+        <div id="dashboard" style="display: none;">
+            <!-- Stats Cards -->
+            <div class="stats-grid" id="stats-grid"></div>
+
+            <!-- Tabs for different datasets -->
+            <div class="tabs" id="dataset-tabs"></div>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <h2 class="section-title">התפלגות הנתונים</h2>
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-title">התפלגות סוגי גנים (GeneType)</div>
+                        <div class="chart-container">
+                            <canvas id="geneTypeChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-title">התפלגות אורכי רצפים</div>
+                        <div class="chart-container">
+                            <canvas id="seqLengthChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Class Balance Section -->
+            <section class="tables-section">
+                <h2 class="section-title">איזון מחלקות</h2>
+                <div class="table-card">
+                    <div id="class-balance"></div>
+                </div>
+            </section>
+
+            <!-- Insights Section -->
+            <section class="insights-section">
+                <h2 class="section-title">תובנות ואזהרות</h2>
+                <div class="insights-grid" id="insights-grid"></div>
+            </section>
+
+            <!-- Sequence Stats -->
+            <section class="tables-section">
+                <h2 class="section-title">סטטיסטיקות רצפים</h2>
+                <div class="table-card">
+                    <table id="seq-stats-table">
+                        <thead>
+                            <tr>
+                                <th>מדד</th>
+                                <th>Train</th>
+                                <th>Validation</th>
+                                <th>Test</th>
+                            </tr>
+                        </thead>
+                        <tbody id="seq-stats-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Base Composition -->
+            <section class="charts-section">
+                <h2 class="section-title">הרכב בסיסים (נוקלאוטידים)</h2>
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-title">אחוז בסיסים A/T/G/C</div>
+                        <div class="chart-container">
+                            <canvas id="baseCompChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-title">דוגמת רצף</div>
+                        <div id="seq-sample" class="seq-preview"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Sample -->
+            <section class="tables-section">
+                <h2 class="section-title">דוגמת נתונים</h2>
+                <div class="table-card">
+                    <table id="sample-table">
+                        <thead>
+                            <tr id="sample-header"></tr>
+                        </thead>
+                        <tbody id="sample-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <footer>
+            נוצר אוטומטית מנתוני הפרויקט | EDA Dashboard
+        </footer>
+    </div>
+
+    <script>
+        // Global data storage
+        const datasets = {};
+        let currentDataset = 'train';
+        let geneTypeChart = null;
+        let seqLengthChart = null;
+        let baseCompChart = null;
+
+        // Color palette
+        const colors = [
+            '#00d4aa', '#7b68ee', '#ffa726', '#ef5350', '#42a5f5',
+            '#66bb6a', '#ab47bc', '#26c6da', '#ffca28', '#8d6e63',
+            '#78909c', '#ec407a', '#5c6bc0', '#29b6f6', '#9ccc65'
+        ];
+
+        // Load CSV files
+        async function loadData() {
+            const files = ['train.csv', 'validation.csv', 'test.csv'];
+            
+            for (const file of files) {
+                try {
+                    const response = await fetch('../' + file);
+                    const text = await response.text();
+                    const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+                    const name = file.replace('.csv', '');
+                    datasets[name] = result.data;
+                } catch (e) {
+                    console.error(`Error loading ${file}:`, e);
+                }
+            }
+        }
+
+        // Analyze data
+        function analyzeDataset(data) {
+            const analysis = {
+                totalRows: data.length,
+                geneTypes: {},
+                seqLengths: [],
+                baseCounts: { A: 0, T: 0, G: 0, C: 0, N: 0, Other: 0 }
+            };
+
+            data.forEach(row => {
+                // Count gene types
+                const geneType = row.GeneType || 'Unknown';
+                analysis.geneTypes[geneType] = (analysis.geneTypes[geneType] || 0) + 1;
+
+                // Sequence analysis
+                let seq = row.NucleotideSequence || '';
+                seq = seq.replace(/[<>]/g, '').toUpperCase();
+                analysis.seqLengths.push(seq.length);
+
+                // Count bases (sample for performance)
+                if (analysis.seqLengths.length <= 2000) {
+                    for (const base of seq) {
+                        if (base === 'A') analysis.baseCounts.A++;
+                        else if (base === 'T') analysis.baseCounts.T++;
+                        else if (base === 'G') analysis.baseCounts.G++;
+                        else if (base === 'C') analysis.baseCounts.C++;
+                        else if (base === 'N') analysis.baseCounts.N++;
+                        else analysis.baseCounts.Other++;
+                    }
+                }
+            });
+
+            // Compute sequence stats
+            const lengths = analysis.seqLengths;
+            lengths.sort((a, b) => a - b);
+            analysis.seqStats = {
+                min: Math.min(...lengths),
+                max: Math.max(...lengths),
+                mean: Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length),
+                median: lengths[Math.floor(lengths.length / 2)]
+            };
+
+            return analysis;
+        }
+
+        // Render stats cards
+        function renderStatsCards() {
+            const train = analyzeDataset(datasets.train || []);
+            const validation = analyzeDataset(datasets.validation || []);
+            const test = analyzeDataset(datasets.test || []);
+
+            const totalSamples = train.totalRows + validation.totalRows + test.totalRows;
+            const numGeneTypes = Object.keys(train.geneTypes).length;
+
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-label">סה"כ דוגמאות</div>
+                    <div class="stat-value">${totalSamples.toLocaleString()}</div>
+                    <div class="stat-sub">Train: ${train.totalRows.toLocaleString()} | Val: ${validation.totalRows.toLocaleString()} | Test: ${test.totalRows.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">סוגי גנים (מחלקות)</div>
+                    <div class="stat-value">${numGeneTypes}</div>
+                    <div class="stat-sub">קטגוריות ייחודיות ב-GeneType</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">אורך רצף ממוצע</div>
+                    <div class="stat-value">${train.seqStats.mean.toLocaleString()}</div>
+                    <div class="stat-sub">טווח: ${train.seqStats.min} - ${train.seqStats.max.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">עמודות בנתונים</div>
+                    <div class="stat-value">6</div>
+                    <div class="stat-sub">NCBIGeneID, Symbol, Description, GeneType, GeneGroupMethod, NucleotideSequence</div>
+                </div>
+            `;
+
+            document.getElementById('stats-grid').innerHTML = statsHtml;
+        }
+
+        // Render dataset tabs
+        function renderTabs() {
+            const tabsHtml = Object.keys(datasets).map(name => 
+                `<button class="tab-btn ${name === currentDataset ? 'active' : ''}" onclick="switchDataset('${name}')">${name}</button>`
+            ).join('');
+            document.getElementById('dataset-tabs').innerHTML = tabsHtml;
+        }
+
+        // Switch dataset
+        function switchDataset(name) {
+            currentDataset = name;
+            renderTabs();
+            renderCharts();
+            renderClassBalance();
+            renderSampleTable();
+        }
+
+        // Render charts
+        function renderCharts() {
+            const analysis = analyzeDataset(datasets[currentDataset] || []);
+
+            // Gene Type Chart
+            const geneTypeCtx = document.getElementById('geneTypeChart').getContext('2d');
+            if (geneTypeChart) geneTypeChart.destroy();
+            
+            const sortedGeneTypes = Object.entries(analysis.geneTypes)
+                .sort((a, b) => b[1] - a[1]);
+
+            geneTypeChart = new Chart(geneTypeCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedGeneTypes.map(([k]) => k),
+                    datasets: [{
+                        label: 'כמות',
+                        data: sortedGeneTypes.map(([, v]) => v),
+                        backgroundColor: colors.slice(0, sortedGeneTypes.length),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#a0a0b8' }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#e8e8f0' }
+                        }
+                    }
+                }
+            });
+
+            // Sequence Length Histogram
+            const seqLengthCtx = document.getElementById('seqLengthChart').getContext('2d');
+            if (seqLengthChart) seqLengthChart.destroy();
+
+            // Create histogram bins
+            const lengths = analysis.seqLengths;
+            const minLen = Math.min(...lengths);
+            const maxLen = Math.max(...lengths);
+            const numBins = 20;
+            const binSize = Math.ceil((maxLen - minLen) / numBins);
+            const bins = new Array(numBins).fill(0);
+            const binLabels = [];
+
+            for (let i = 0; i < numBins; i++) {
+                const start = minLen + i * binSize;
+                const end = start + binSize;
+                binLabels.push(`${start}-${end}`);
+            }
+
+            lengths.forEach(len => {
+                const binIndex = Math.min(Math.floor((len - minLen) / binSize), numBins - 1);
+                if (binIndex >= 0) bins[binIndex]++;
+            });
+
+            seqLengthChart = new Chart(seqLengthCtx, {
+                type: 'bar',
+                data: {
+                    labels: binLabels,
+                    datasets: [{
+                        label: 'כמות רצפים',
+                        data: bins,
+                        backgroundColor: '#7b68ee',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { 
+                                color: '#a0a0b8',
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#a0a0b8' }
+                        }
+                    }
+                }
+            });
+
+            // Base Composition Chart
+            const baseCompCtx = document.getElementById('baseCompChart').getContext('2d');
+            if (baseCompChart) baseCompChart.destroy();
+
+            const totalBases = Object.values(analysis.baseCounts).reduce((a, b) => a + b, 0);
+            const baseLabels = ['A', 'T', 'G', 'C'];
+            const baseData = baseLabels.map(b => ((analysis.baseCounts[b] / totalBases) * 100).toFixed(1));
+
+            baseCompChart = new Chart(baseCompCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: baseLabels,
+                    datasets: [{
+                        data: baseData,
+                        backgroundColor: ['#4CAF50', '#f44336', '#ff9800', '#2196F3'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#e8e8f0' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.label}: ${ctx.raw}%`
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Sequence sample
+            const sampleSeq = (datasets[currentDataset][0]?.NucleotideSequence || '')
+                .replace(/[<>]/g, '')
+                .substring(0, 100);
+            
+            let coloredSeq = '';
+            for (const base of sampleSeq) {
+                coloredSeq += `<span class="base-${base}">${base}</span>`;
+            }
+            document.getElementById('seq-sample').innerHTML = coloredSeq + '...';
+        }
+
+        // Render class balance
+        function renderClassBalance() {
+            const analysis = analyzeDataset(datasets[currentDataset] || []);
+            const sorted = Object.entries(analysis.geneTypes).sort((a, b) => b[1] - a[1]);
+            const maxCount = sorted[0]?.[1] || 1;
+
+            let html = '';
+            sorted.forEach(([name, count], i) => {
+                const pct = ((count / analysis.totalRows) * 100).toFixed(1);
+                const barPct = (count / maxCount) * 100;
+                html += `
+                    <div class="class-bar-container">
+                        <div class="class-bar-label">
+                            <span>${name}</span>
+                            <span>${count.toLocaleString()} (${pct}%)</span>
+                        </div>
+                        <div class="class-bar">
+                            <div class="class-bar-fill" style="width: ${barPct}%; background: ${colors[i % colors.length]}"></div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('class-balance').innerHTML = html;
+        }
+
+        // Render sequence stats table
+        function renderSeqStatsTable() {
+            const stats = {};
+            ['train', 'validation', 'test'].forEach(name => {
+                if (datasets[name]) {
+                    stats[name] = analyzeDataset(datasets[name]).seqStats;
+                }
+            });
+
+            const metrics = [
+                { label: 'אורך מינימלי', key: 'min' },
+                { label: 'אורך מקסימלי', key: 'max' },
+                { label: 'אורך ממוצע', key: 'mean' },
+                { label: 'חציון', key: 'median' }
+            ];
+
+            let html = '';
+            metrics.forEach(({ label, key }) => {
+                html += `<tr>
+                    <td>${label}</td>
+                    <td>${stats.train?.[key]?.toLocaleString() || '-'}</td>
+                    <td>${stats.validation?.[key]?.toLocaleString() || '-'}</td>
+                    <td>${stats.test?.[key]?.toLocaleString() || '-'}</td>
+                </tr>`;
+            });
+
+            document.getElementById('seq-stats-body').innerHTML = html;
+        }
+
+        // Render insights
+        function renderInsights() {
+            const train = analyzeDataset(datasets.train || []);
+            const sorted = Object.entries(train.geneTypes).sort((a, b) => b[1] - a[1]);
+            
+            const insights = [];
+
+            // Class imbalance check
+            if (sorted.length > 1) {
+                const ratio = sorted[0][1] / sorted[sorted.length - 1][1];
+                if (ratio > 10) {
+                    insights.push({
+                        type: 'danger',
+                        title: '⚠️ חוסר איזון חמור במחלקות',
+                        text: `המחלקה "${sorted[0][0]}" גדולה פי ${ratio.toFixed(0)} מהמחלקה הקטנה ביותר. מומלץ להשתמש ב-class weights או טכניקות sampling.`
+                    });
+                } else if (ratio > 5) {
+                    insights.push({
+                        type: 'warning',
+                        title: '⚡ חוסר איזון בינוני במחלקות',
+                        text: 'קיים פער משמעותי בין גדלי המחלקות. כדאי לשקול מדדי הערכה כמו Macro-F1 ו-Balanced Accuracy.'
+                    });
+                }
+            }
+
+            // Sequence length variation
+            if (train.seqStats.max > train.seqStats.min * 100) {
+                insights.push({
+                    type: 'warning',
+                    title: '📏 שונות גבוהה באורכי רצפים',
+                    text: `אורכי הרצפים נעים בין ${train.seqStats.min} ל-${train.seqStats.max.toLocaleString()}. כדאי לשקול padding/truncation או מודלים שמתמודדים עם אורכים משתנים.`
+                });
+            }
+
+            // GC content
+            const totalBases = train.baseCounts.A + train.baseCounts.T + train.baseCounts.G + train.baseCounts.C;
+            const gcContent = ((train.baseCounts.G + train.baseCounts.C) / totalBases * 100).toFixed(1);
+            insights.push({
+                type: 'info',
+                title: '🧪 תוכן GC',
+                text: `אחוז ה-GC הממוצע ברצפים הוא ${gcContent}%. ערך זה יכול לשמש כפיצ'ר נוסף במודל.`
+            });
+
+            // Data leakage warning
+            insights.push({
+                type: 'warning',
+                title: '🔒 אזהרת דליפת מידע',
+                text: 'עמודת Description עשויה להכיל מילים כמו "pseudogene" שמגלות את ה-label. מומלץ לא להשתמש בה כפיצ\'ר.'
+            });
+
+            // Recommendation
+            insights.push({
+                type: 'info',
+                title: '💡 המלצה מרכזית',
+                text: 'התמקדו ב-NucleotideSequence כפיצ\'ר העיקרי. ניתן לחלץ ממנו: אורך רצף, אחוז GC, ספירת k-mers, ומוטיבים ידועים.'
+            });
+
+            const html = insights.map(i => `
+                <div class="insight-card ${i.type}">
+                    <div class="insight-title">${i.title}</div>
+                    <div class="insight-text">${i.text}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('insights-grid').innerHTML = html;
+        }
+
+        // Render sample data table
+        function renderSampleTable() {
+            const data = datasets[currentDataset] || [];
+            if (data.length === 0) return;
+
+            const headers = Object.keys(data[0]);
+            const headerHtml = headers.map(h => `<th>${h}</th>`).join('');
+            document.getElementById('sample-header').innerHTML = headerHtml;
+
+            const sample = data.slice(0, 5);
+            let bodyHtml = '';
+            sample.forEach(row => {
+                bodyHtml += '<tr>';
+                headers.forEach(h => {
+                    let val = row[h] || '';
+                    if (h === 'NucleotideSequence') {
+                        val = val.substring(0, 50) + '...';
+                    } else if (h === 'Description') {
+                        val = val.substring(0, 40) + (val.length > 40 ? '...' : '');
+                    }
+                    if (h === 'GeneType') {
+                        val = `<span class="badge badge-primary">${val}</span>`;
+                    }
+                    bodyHtml += `<td>${val}</td>`;
+                });
+                bodyHtml += '</tr>';
+            });
+            document.getElementById('sample-body').innerHTML = bodyHtml;
+        }
+
+        // Initialize
+        async function init() {
+            await loadData();
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+
+            renderStatsCards();
+            renderTabs();
+            renderCharts();
+            renderClassBalance();
+            renderSeqStatsTable();
+            renderInsights();
+            renderSampleTable();
+        }
+
+        init();
+    </script>
+</body>
+</html>
+
